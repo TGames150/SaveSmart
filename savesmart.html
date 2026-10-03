@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SaveSmart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<style>
+  input, select { color-scheme: dark; }
+  input[type=range]{accent-color:#22c55e}
+  [v-cloak]{display:none}
+
+  /* Liquid glass */
+  .glass{
+    background: linear-gradient(135deg, rgba(255,255,255,.15), rgba(255,255,255,.04) 60%, rgba(255,255,255,.08));
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.38),
+      inset 0 -1px 0 rgba(255,255,255,.06),
+      inset 0 0 22px rgba(255,255,255,.04),
+      0 10px 30px rgba(0,0,0,.35);
+  }
+  .glass-hero{
+    background:
+      radial-gradient(120% 90% at 0% 0%, rgba(255,255,255,.26), rgba(255,255,255,0) 55%),
+      linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.03));
+  }
+  button.glass{ transition: filter .15s ease, transform .15s ease; }
+  button.glass:hover{ filter: brightness(1.25); }
+  button.glass:active{ transform: scale(.98); }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+    .glass{ background: rgba(32,32,36,.92); }
+  }
+  @media (prefers-reduced-transparency: reduce){
+    .glass{ background: rgba(32,32,36,.96); -webkit-backdrop-filter:none; backdrop-filter:none; }
+  }
+</style>
+</head>
+<body class="bg-black text-white antialiased" style="font-family:'Poppins',system-ui,sans-serif">
+<div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden="true">
+  <div class="absolute -top-24 -left-20 w-80 h-80 rounded-full bg-violet-600/45 blur-3xl"></div>
+  <div class="absolute top-1/3 -right-24 w-80 h-80 rounded-full bg-green-500/30 blur-3xl"></div>
+  <div class="absolute -bottom-24 left-1/4 w-96 h-96 rounded-full bg-yellow-400/20 blur-3xl"></div>
+</div>
+<div id="app" v-cloak class="max-w-md mx-auto min-h-screen flex flex-col md:my-6 md:min-h-[calc(100vh-3rem)] md:rounded-[2.5rem] md:border md:border-white/10">
+  <main class="flex-1 px-4 pt-6 pb-4 space-y-3">
+
+    <header class="flex items-center gap-3">
+      <h1 class="text-lg font-semibold tracking-tight">SaveSmart</h1>
+      <div class="flex-1 flex items-center justify-between glass rounded-full h-11 px-1.5">
+        <button @click="ga(-1)" :disabled="idx <= MIN" aria-label="Vorige maand"
+                class="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-300 disabled:text-neutral-700 focus:outline-none focus:ring-2 focus:ring-green-500"><ico n="left"/></button>
+        <span class="capitalize text-sm font-medium">{{ maandNaam }}</span>
+        <button @click="ga(1)" :disabled="idx >= MAX" aria-label="Volgende maand"
+                class="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-300 disabled:text-neutral-700 focus:outline-none focus:ring-2 focus:ring-green-500"><ico n="right"/></button>
+      </div>
+    </header>
+
+    <!-- HOME -->
+    <div v-show="tab === 'home'" class="space-y-3">
+      <section class="glass glass-hero rounded-3xl p-5">
+        <div class="flex items-start justify-between">
+          <p class="text-sm font-medium">{{ isHuidig ? 'Je mag deze maand uitgeven' : 'Je kon uitgeven' }}</p>
+          <button @click="tab = 'inkomsten'" aria-label="Inkomst toevoegen"
+                  class="w-8 h-8 -mt-1 -mr-1 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-green-500"><ico n="plus"/></button>
+        </div>
+        <p class="text-neutral-400 text-lg font-medium capitalize">{{ maandNaam }}</p>
+        <div class="flex items-end justify-between mt-8">
+          <p class="text-4xl font-bold tabular-nums">{{ eur(vrij) }}</p>
+          <div class="flex -space-x-2 mb-1.5" aria-hidden="true">
+            <span class="w-6 h-6 rounded-full bg-yellow-400"></span><span class="w-6 h-6 rounded-full bg-green-500"></span>
+          </div>
+        </div>
+        <div class="flex justify-between text-sm text-neutral-400 mt-2">
+          <span>Ontvangen {{ eur(totaal) }}</span><span>{{ pct }}% sparen</span>
+        </div>
+      </section>
+
+      <div class="grid grid-cols-2 gap-3">
+        <section class="glass rounded-3xl p-4">
+          <p class="text-sm font-medium">Sparen</p>
+          <p class="text-xs text-neutral-400">Over te boeken</p>
+          <p class="text-xl font-semibold text-green-400 mt-4 tabular-nums">{{ eur(teSparen) }}</p>
+        </section>
+        <section class="glass rounded-3xl p-4">
+          <p class="text-sm font-medium">Tiende</p>
+          <p class="text-xs text-neutral-400">Apart, niet sparen</p>
+          <p class="text-xl font-semibold text-yellow-400 mt-4 tabular-nums">{{ eur(tiende) }}</p>
+        </section>
+      </div>
+
+      <section class="glass rounded-3xl p-4">
+        <div class="flex justify-between items-baseline">
+          <p class="text-sm font-medium">Verdeling</p>
+          <p class="text-xs text-neutral-400">{{ periode }}</p>
+        </div>
+        <div class="flex gap-1.5 mt-4" role="img" :aria-label="`Tiende ${tp}%, sparen ${spaarPct}%, vrij besteedbaar ${vrijPct}%`">
+          <div v-show="tp > 0" class="h-7 rounded-full bg-yellow-400 transition-all duration-300" :style="{flex: tp + ' 1 0', minWidth: '14px'}"></div>
+          <div v-show="spaarPct > 0" class="h-7 rounded-full bg-green-500 transition-all duration-300" :style="{flex: spaarPct + ' 1 0', minWidth: '14px'}"></div>
+          <div v-show="vrijPct > 0" class="h-7 rounded-full bg-violet-600 transition-all duration-300" :style="{flex: vrijPct + ' 1 0', minWidth: '14px'}"></div>
+        </div>
+        <div class="flex flex-wrap justify-between gap-x-3 text-xs text-neutral-400 mt-3">
+          <span><span class="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1.5"></span>Tiende {{ tp }}%</span>
+          <span><span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>Sparen {{ spaarPct }}%</span>
+          <span><span class="inline-block w-2 h-2 rounded-full bg-violet-600 mr-1.5"></span>Vrij {{ vrijPct }}%</span>
+        </div>
+      </section>
+
+      <div class="grid grid-cols-[3.5rem_1fr_1fr] gap-3">
+        <div class="flex flex-col gap-3">
+          <button @click="tab = 'inkomsten'" aria-label="Inkomst toevoegen" class="flex-1 glass rounded-3xl flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-green-500"><ico n="plus"/></button>
+          <button @click="tab = 'instellingen'" aria-label="Instellingen" class="flex-1 glass rounded-3xl flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-green-500"><ico n="sliders"/></button>
+        </div>
+        <button @click="tab = 'inkomsten'" class="glass rounded-3xl p-4 h-28 text-left flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-green-500">
+          <span class="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center"><ico n="list"/></span>
+          <span class="text-sm font-medium">Inkomsten <span class="text-neutral-400">({{ rijen.length }})</span></span>
+        </button>
+        <button @click="tab = 'instellingen'" class="glass rounded-3xl p-4 h-28 text-left flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-green-500">
+          <span class="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center"><ico n="sliders"/></span>
+          <span class="text-sm font-medium">Percentages</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- INKOMSTEN -->
+    <div v-show="tab === 'inkomsten'" class="space-y-3">
+      <section class="glass rounded-3xl p-4">
+        <h2 class="font-semibold mb-4">Inkomst toevoegen</h2>
+        <div class="space-y-3">
+          <div>
+            <label for="bedrag" class="block text-xs text-neutral-400 mb-1">Bedrag (€)</label>
+            <input id="bedrag" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00"
+                   v-model="form.bedrag" @keyup.enter="voegToe" class="w-full rounded-2xl bg-white/10 border border-white/10 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="datum" class="block text-xs text-neutral-400 mb-1">Datum van ontvangst</label>
+              <input id="datum" type="date" v-model="form.datum" class="w-full rounded-2xl bg-white/10 border border-white/10 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div>
+              <label for="freq" class="block text-xs text-neutral-400 mb-1">Frequentie</label>
+              <select id="freq" v-model="form.freq" class="w-full rounded-2xl bg-white/10 border border-white/10 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500">
+                <option value="dagelijks">Dagelijks</option>
+                <option value="wekelijks">Wekelijks</option>
+                <option value="eenmalig">Ad random / Eenmalig</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <p v-if="fout" class="text-sm text-rose-400 mt-3">{{ fout }}</p>
+        <button @click="voegToe" class="mt-4 w-full rounded-2xl bg-white text-black font-semibold py-3 focus:outline-none focus:ring-2 focus:ring-green-500">
+          Inkomst toevoegen
+        </button>
+        <p class="text-xs text-neutral-400 mt-3">
+          Dagelijkse en wekelijkse inkomsten tellen mee voor elke keer dat ze sinds de startdatum zijn ontvangen, tot en met vandaag. Verwijder je zo'n inkomst, dan verdwijnt die uit alle maanden.
+        </p>
+      </section>
+
+      <section class="glass rounded-3xl p-4">
+        <h2 class="font-semibold mb-3">Inkomsten van {{ isHuidig ? 'deze maand' : maandNaam }}</h2>
+        <p v-if="!rijen.length" class="text-neutral-400 text-sm">Nog geen inkomsten. Voeg hierboven je eerste inkomst toe.</p>
+        <ul v-else class="divide-y divide-white/10">
+          <li v-for="r in rijen" :key="r.id" class="flex items-center gap-3 py-3">
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold text-green-400 tabular-nums">{{ eur(r.totaal) }}</p>
+              <p class="text-sm text-neutral-400">
+                {{ datumNl(r.datum) }} · {{ label(r.freq) }}<span v-if="r.freq !== 'eenmalig'"> · {{ r.keer }}× {{ eur(r.bedrag) }}</span>
+              </p>
+              <p class="text-xs text-neutral-400 mt-0.5">
+                Tiende {{ eur(r.tiende) }} · Sparen {{ eur(r.spaar) }}<span v-if="r.ingevoerd"> · Ingevoerd {{ tijdNl(r.ingevoerd) }}</span>
+              </p>
+            </div>
+            <button @click="verwijder(r.id)" aria-label="Inkomst verwijderen"
+                    class="shrink-0 rounded-xl px-3 py-1.5 text-sm text-neutral-400 hover:bg-white/10 hover:text-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-400">Verwijderen</button>
+          </li>
+        </ul>
+        <div class="mt-4 pt-3 border-t border-white/10">
+          <button @click="herstart" :disabled="!rijen.length"
+                  class="text-sm text-rose-400 hover:text-rose-300 disabled:text-neutral-700 disabled:cursor-not-allowed focus:outline-none focus:underline">Maand herstarten</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- INSTELLINGEN -->
+    <div v-show="tab === 'instellingen'" class="space-y-3">
+      <section class="glass rounded-3xl p-4 space-y-5">
+        <div>
+          <label for="pct" class="flex justify-between text-sm mb-2">
+            <span class="font-medium">Spaarpercentage</span><span class="font-semibold">{{ pct }}%</span>
+          </label>
+          <input id="pct" type="range" min="0" max="80" step="1" v-model.number="pct" class="w-full">
+          <p class="text-xs text-neutral-400 mt-2">Berekend over wat na de tiende overblijft. Geldt alleen voor {{ maandNaam }}.</p>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <label for="tiende" class="text-sm font-medium">Tiende (% dat apart gaat)</label>
+          <input id="tiende" type="number" min="0" max="20" step="1" v-model.number="tiendePct"
+                 class="w-20 rounded-2xl bg-white/10 border border-white/10 px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-yellow-400">
+        </div>
+      </section>
+    </div>
+
+    <p class="text-center text-xs text-neutral-500 pt-2">Je gegevens blijven alleen in deze browser bewaard.</p>
+  </main>
+
+  <nav class="sticky bottom-4 mx-4 mb-4 glass rounded-full p-1.5 grid grid-cols-3 gap-1">
+    <button v-for="t in tabs" :key="t.id" @click="tab = t.id" :aria-current="tab === t.id ? 'page' : null"
+            :class="tab === t.id ? 'text-white bg-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,.35)]' : 'text-neutral-400'"
+            class="flex flex-col items-center gap-0.5 text-xs rounded-full py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500">
+      <ico :n="t.icon"/>{{ t.label }}
+    </button>
+  </nav>
+</div>
+
+<script>
+const { createApp, ref, computed, watch } = Vue;
+const KEY = 'spaardashboard-v1';
+
+const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const dagen = (a, b) => Math.round((b - a) / 86400000);
+
+function laad() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
+}
+
+createApp({
+  setup() {
+    const opgeslagen = laad();
+    const items = ref(Array.isArray(opgeslagen.items) ? opgeslagen.items : []);
+    const pcts = ref(opgeslagen.pcts && typeof opgeslagen.pcts === 'object' ? opgeslagen.pcts : {});
+    const tiendePct = ref(Number.isFinite(opgeslagen.tiendePct) ? opgeslagen.tiendePct : 10);
+    const standaardPct = Number.isFinite(opgeslagen.pct) ? opgeslagen.pct : 50;
+    const form = ref({ bedrag: '', datum: iso(new Date()), freq: 'eenmalig' });
+    const fout = ref('');
+
+    watch([items, pcts, tiendePct], () => {
+      try { localStorage.setItem(KEY, JSON.stringify({ items: items.value, pcts: pcts.value, pct: standaardPct, tiendePct: tiendePct.value })); } catch {}
+    }, { deep: true });
+
+    const nu = new Date();
+    const vandaag = new Date(nu.getFullYear(), nu.getMonth(), nu.getDate());
+    const MIN = 2026 * 12 + 8; // september 2026
+    const MAX = Math.max(nu.getFullYear() * 12 + nu.getMonth(), MIN);
+    const idx = ref(MAX);
+    const jaar = computed(() => Math.floor(idx.value / 12));
+    const maand = computed(() => idx.value % 12);
+    const start = computed(() => new Date(jaar.value, maand.value, 1));
+    const eind = computed(() => new Date(jaar.value, maand.value + 1, 0));
+    const maandNaam = computed(() => new Intl.DateTimeFormat('nl-NL', { month: 'long', year: 'numeric' }).format(start.value));
+    const isHuidig = computed(() => idx.value === MAX);
+    const periode = computed(() => isHuidig.value ? 'deze maand' : 'in ' + maandNaam.value);
+    const sleutel = computed(() => `${jaar.value}-${String(maand.value + 1).padStart(2, '0')}`);
+    const pct = computed({
+      get: () => pcts.value[sleutel.value] ?? standaardPct,
+      set: v => { pcts.value[sleutel.value] = v; }
+    });
+
+    function ga(n) {
+      const nieuw = idx.value + n;
+      if (nieuw < MIN || nieuw > MAX) return;
+      idx.value = nieuw;
+      form.value.datum = isHuidig.value ? iso(vandaag) : iso(start.value);
+      fout.value = '';
+    }
+
+    const tp = computed(() => Math.min(100, Math.max(0, Number(tiendePct.value) || 0)));
+
+    const rijen = computed(() => {
+      const uit = [];
+      const s = start.value, e = eind.value;
+      for (const t of items.value) {
+        const d = parse(t.datum);
+        let keer = 0;
+        if (t.freq === 'eenmalig') {
+          keer = d >= s && d <= e ? 1 : 0;
+        } else {
+          const van = d > s ? d : s;
+          const tot = vandaag < e ? vandaag : e;
+          if (van <= tot) {
+            const n = dagen(d, van);
+            const stap = t.freq === 'dagelijks' ? 1 : 7;
+            // eerste voorkomen op of na 'van'
+            const eerste = n <= 0 ? 0 : Math.ceil(n / stap) * stap;
+            const laatste = dagen(d, tot);
+            keer = laatste >= eerste ? Math.floor((laatste - eerste) / stap) + 1 : 0;
+          }
+        }
+        if (keer > 0) {
+          const c = Math.round(t.bedrag * 100);
+          const ti = Math.floor(c * tp.value / 100); // tiende: letterlijk, naar beneden op de cent
+          const sp = Math.floor((c - ti) * pct.value / 100); // sparen over het resterende bedrag, ook naar beneden
+          uit.push({ ...t, keer, totaalC: keer * c, spaarC: keer * sp, tiendeC: keer * ti, totaal: keer * c / 100, spaar: keer * sp / 100, tiende: keer * ti / 100 });
+        }
+      }
+      return uit.sort((a, b) => b.datum.localeCompare(a.datum) || (b.ingevoerd || 0) - (a.ingevoerd || 0));
+    });
+
+    const totaalC = computed(() => rijen.value.reduce((s, r) => s + r.totaalC, 0));
+    const spaarC = computed(() => rijen.value.reduce((s, r) => s + r.spaarC, 0));
+    const totaal = computed(() => totaalC.value / 100);
+    const teSparen = computed(() => spaarC.value / 100);
+    const tiendeC = computed(() => rijen.value.reduce((s, r) => s + r.tiendeC, 0));
+    const tiende = computed(() => tiendeC.value / 100);
+    const vrij = computed(() => (totaalC.value - spaarC.value - tiendeC.value) / 100);
+    const spaarPct = computed(() => Math.round((100 - tp.value) * pct.value) / 100);
+    const vrijPct = computed(() => Math.max(0, Math.round((100 - tp.value - spaarPct.value) * 100) / 100));
+
+    const eur = n => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n || 0);
+    const datumNl = s => new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }).format(parse(s));
+    const tijdNl = ms => new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(ms));
+    const label = f => ({ dagelijks: 'Dagelijks', wekelijks: 'Wekelijks', eenmalig: 'Eenmalig' })[f];
+
+    function voegToe() {
+      const bedrag = parseFloat(String(form.value.bedrag).replace(',', '.'));
+      if (!(bedrag > 0)) { fout.value = 'Vul een bedrag in dat groter is dan 0.'; return; }
+      if (!form.value.datum) { fout.value = 'Kies een datum van ontvangst.'; return; }
+      fout.value = '';
+      items.value.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        bedrag: Math.round(bedrag * 100) / 100,
+        datum: form.value.datum,
+        freq: form.value.freq,
+        ingevoerd: Date.now()
+      });
+      form.value.bedrag = '';
+    }
+    function verwijder(id) { items.value = items.value.filter(t => t.id !== id); }
+    function herstart() {
+      if (!confirm('Alle inkomsten die in ' + maandNaam.value + ' meetellen verwijderen? Dagelijkse en wekelijkse inkomsten verdwijnen dan ook uit andere maanden. Dit kan niet ongedaan worden gemaakt.')) return;
+      const ids = new Set(rijen.value.map(r => r.id));
+      items.value = items.value.filter(t => !ids.has(t.id));
+    }
+
+    const tab = ref('home');
+    const tabs = [
+      { id: 'home', label: 'Home', icon: 'home' },
+      { id: 'inkomsten', label: 'Inkomsten', icon: 'list' },
+      { id: 'instellingen', label: 'Instellingen', icon: 'sliders' }
+    ];
+
+    return { tab, tabs, spaarPct, tiendePct, tp, tiende, vrijPct, tijdNl, MIN, MAX, idx, ga, isHuidig, periode, items, pct, form, fout, maandNaam, rijen, totaal, teSparen, vrij, eur, datumNl, label, voegToe, verwijder, herstart };
+  }
+}).component('ico', {
+  props: ['n'],
+  setup() {
+    const p = {
+      home: 'M3 11l9-8 9 8M5 10v10h14V10M10 20v-6h4v6',
+      list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+      plus: 'M12 5v14M5 12h14',
+      sliders: 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
+      left: 'M15 18l-6-6 6-6',
+      right: 'M9 6l6 6-6 6'
+    };
+    return { p };
+  },
+  template: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="p[n]"/></svg>'
+}).mount('#app');
+</script>
+</body>
+</html>
